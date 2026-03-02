@@ -15,53 +15,109 @@ app = Flask(__name__)
 CORS(app)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 
-db = mysql.connector.connect(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    database=os.getenv("DB_NAME")
-)
-
-cursor = db.cursor(buffered=True)
+# Database connection with error handling
+try:
+    db = mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME")
+    )
+    cursor = db.cursor(buffered=True)
+    print("✓ Database connected successfully")
+except mysql.connector.Error as err:
+    print(f"✗ Database connection error: {err}")
+    print("Make sure MySQL is running and the database 'civictrack_ai' exists")
+    raise
 
 @app.route('/')
 def home():
-    return {'message': 'Backend is running!'}
+    return jsonify({'message': 'Backend is running!', 'status': 'ok'}), 200
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        # Test database connection
+        cursor.execute("SELECT 1")
+        return jsonify({'status': 'healthy', 'database': 'connected'}), 200
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.json
-    name = data['name']
-    email = data['email']
-    password = data['password']
+    try:
+        data = request.json
+        
+        # Validate required fields
+        if not data.get('name') or not data.get('email') or not data.get('password'):
+            return jsonify({"message": "Name, email, and password are required"}), 400
+        
+        name = data['name']
+        email = data['email']
+        password = data['password']
+        role = data.get('role', 'citizen')
 
-    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        # Check if email already exists
+        cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
+        existing_user = cursor.fetchone()
+        
+        if existing_user:
+            return jsonify({"message": "Email already exists"}), 400
 
-    query = "INSERT INTO users (name, email, password) VALUES (%s, %s, %s)"
-    cursor.execute(query, (name, email, hashed_pw))
-    db.commit()
+        # Hash the password
+        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        
+        # Convert bytes to string for database storage
+        hashed_pw_str = hashed_pw.decode('utf-8')
 
-    return jsonify({"message": "User Registered Successfully"})
+        query = "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query, (name, email, hashed_pw_str, role))
+        db.commit()
+
+        return jsonify({"message": "User Registered Successfully"}), 201
+    
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        return jsonify({"message": f"Registration error: {str(e)}"}), 500
 
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.json
-    email = data['email']
-    password = data['password']
+    try:
+        data = request.json
+        
+        # Validate required fields
+        if not data.get('email') or not data.get('password'):
+            return jsonify({"message": "Email and password are required"}), 400
+        
+        email = data['email']
+        password = data['password']
 
-    cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
-    user = cursor.fetchone()
+        cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
+        user = cursor.fetchone()
 
-    if user and bcrypt.checkpw(password.encode('utf-8'), user[3].encode('utf-8')):
-        token = jwt.encode({
-            'user_id': user[0],
-            'role': user[4],
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=5)
-        }, app.config['SECRET_KEY'], algorithm="HS256")
+        if user:
+            # Get the hashed password from database (index 3)
+            stored_hash = user[3]
+            
+            # Ensure stored_hash is in the right format (bytes)
+            if isinstance(stored_hash, str):
+                stored_hash = stored_hash.encode('utf-8')
+            
+            # Check password
+            if bcrypt.checkpw(password.encode('utf-8'), stored_hash):
+                token = jwt.encode({
+                    'user_id': user[0],
+                    'role': user[4],
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=5)
+                }, app.config['SECRET_KEY'], algorithm="HS256")
 
-        return jsonify({"token": token})
+                return jsonify({"token": token}), 200
 
-    return jsonify({"message": "Invalid Credentials"}), 401
+        return jsonify({"message": "Invalid Credentials"}), 401
+    
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        return jsonify({"message": f"Login error: {str(e)}"}), 500
 
 def token_required(f):
     @wraps(f)
@@ -275,4 +331,16 @@ def my_issues(current_user):
     return jsonify(issues)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("\n" + "="*50)
+    print("CivicTrack AI Backend Starting...")
+    print("="*50)
+    print(f"Database: {os.getenv('DB_HOST')} - {os.getenv('DB_NAME')}")
+    print(f"Running on: http://localhost:5000")
+    print(f"Health Check: http://localhost:5000/health")
+    print("="*50 + "\n")
+    
+    try:
+        app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)
+    except Exception as e:
+        print(f"Error starting app: {e}")
+        raise
