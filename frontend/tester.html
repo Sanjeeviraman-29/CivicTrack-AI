@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CivicTrack AI - System Tester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .log-success { color: #4ec9b0; }
+        .log-error { color: #f48771; }
+        .log-info { color: #9cdcfe; }
+        .log-warning { color: #ce9178; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white p-8 rounded-xl shadow">
+        <h1 class="text-3xl font-bold mb-2">CivicTrack AI System Tester</h1>
+        <p class="text-gray-600 mb-6">Test authentication, API endpoints, and system functionality</p>
+        
+        <!-- Quick Links -->
+        <div class="mb-8 p-4 bg-blue-50 rounded-lg">
+            <h2 class="font-semibold mb-3">Admin Credentials:</h2>
+            <p class="mb-2"><strong>Email:</strong> admin@gmail.com</p>
+            <p class="mb-2"><strong>Password:</strong> admin123</p>
+            <p class="text-sm text-gray-600 mb-3">After logging in, go to: http://localhost:8000/dashboard.html</p>
+            
+            <h2 class="font-semibold mb-3 mt-4">Resolver Credentials:</h2>
+            <p class="mb-2"><strong>Email:</strong> resolver@example.com</p>
+            <p class="mb-2"><strong>Password:</strong> resolver123</p>
+            <p class="text-sm text-gray-600">After logging in, go to: http://localhost:8000/resolver.html</p>
+        </div>
+        
+        <!-- Test Controls -->
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <button onclick="testLogin()" class="bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                Test Admin Login
+            </button>
+            <button onclick="testResolvers()" class="bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                Test Get Resolvers
+            </button>
+            <button onclick="testAllIssues()" class="bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">
+                Test Get Issues
+            </button>
+            <button onclick="testStats()" class="bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700">
+                Test Stats
+            </button>
+            <button onclick="clearLog()" class="bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 col-span-2">
+                Clear Log
+            </button>
+        </div>
+        
+        <!-- System Status -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="p-4 border rounded-lg">
+                <p class="text-sm text-gray-600">Backend Status</p>
+                <p id="backendStatus" class="text-xl font-bold text-gray-400">Checking...</p>
+            </div>
+            <div class="p-4 border rounded-lg">
+                <p class="text-sm text-gray-600">Frontend Status</p>
+                <p id="frontendStatus" class="text-xl font-bold text-green-600">✓ Running</p>
+            </div>
+            <div class="p-4 border rounded-lg">
+                <p class="text-sm text-gray-600">Token Status</p>
+                <p id="tokenStatus" class="text-xl font-bold text-gray-400">Not Set</p>
+            </div>
+        </div>
+        
+        <!-- Log Output -->
+        <div>
+            <h3 class="font-semibold mb-2">System Log:</h3>
+            <div id="log" class="log-container p-4">
+                <p class="log-info">[INFO] System tester ready. Click a test button to start.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:5000";
+let adminToken = null;
+
+function log(message, type = 'info') {
+    const logElement = document.getElementById('log');
+    const timestamp = new Date().toLocaleTimeString();
+    
+    let className = 'log-info';
+    if (type === 'success') className = 'log-success';
+    if (type === 'error') className = 'log-error';
+    if (type === 'warning') className = 'log-warning';
+    
+    const entry = document.createElement('p');
+    entry.className = className;
+    entry.textContent = `[${timestamp}] ${message}`;
+    logElement.appendChild(entry);
+    logElement.scrollTop = logElement.scrollHeight;
+}
+
+function clearLog() {
+    document.getElementById('log').innerHTML = '';
+    log('[INFO] Log cleared', 'info');
+}
+
+async function checkBackendStatus() {
+    try {
+        const response = await fetch(`${API_URL}/health`);
+        const data = await response.json();
+        if (data.status === 'healthy') {
+            document.getElementById('backendStatus').textContent = '✓ Online';
+            document.getElementById('backendStatus').className = 'text-xl font-bold text-green-600';
+            log('Backend is healthy', 'success');
+            return true;
+        }
+    } catch (error) {
+        document.getElementById('backendStatus').textContent = '✗ Offline';
+        document.getElementById('backendStatus').className = 'text-xl font-bold text-red-600';
+        log(`Backend error: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+async function testLogin() {
+    log('[TEST] Testing admin login...', 'info');
+    
+    try {
+        const response = await fetch(`${API_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: 'admin@gmail.com',
+                password: 'admin123'
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            adminToken = data.token;
+            localStorage.setItem('token', adminToken);
+            
+            document.getElementById('tokenStatus').textContent = '✓ Valid';
+            document.getElementById('tokenStatus').className = 'text-xl font-bold text-green-600';
+            
+            log('✓ Admin login successful!', 'success');
+            log(`Token: ${adminToken.substring(0, 50)}...`, 'info');
+            return adminToken;
+        } else {
+            const error = await response.json();
+            log(`✗ Login failed: ${error.message}`, 'error');
+            return null;
+        }
+    } catch (error) {
+        log(`✗ Login error: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+async function testResolvers() {
+    log('[TEST] Getting resolvers...', 'info');
+    
+    if (!adminToken) {
+        log('⚠ Need admin token first. Click "Test Admin Login"', 'warning');
+        await testLogin();
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/resolvers`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            log(`✓ Found ${data.length} resolver(s)`, 'success');
+            data.forEach(resolver => {
+                log(`  - ${resolver.name} (${resolver.email})`, 'info');
+            });
+        } else {
+            const error = await response.json();
+            log(`✗ Unable to get resolvers: ${error.message}`, 'error');
+        }
+    } catch (error) {
+        log(`✗ Error: ${error.message}`, 'error');
+    }
+}
+
+async function testAllIssues() {
+    log('[TEST] Getting all issues...', 'info');
+    
+    if (!adminToken) {
+        log('⚠ Need admin token first. Click "Test Admin Login"', 'warning');
+        await testLogin();
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/all-issues`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            log(`✓ Found ${data.length} issue(s)`, 'success');
+            
+            // Count unassigned
+            const unassigned = data.filter(issue => !issue[11] || issue[11] === null).length;
+            log(`  - Unassigned: ${unassigned}`, 'info');
+            
+            // Show first few
+            data.slice(0, 3).forEach((issue, idx) => {
+                const title = issue[1];
+                const status = issue[8];
+                const assigned = issue[11] ? 'Assigned' : 'Unassigned';
+                log(`  [${idx + 1}] "${title}" - ${status} - ${assigned}`, 'info');
+            });
+        } else {
+            const error = await response.json();
+            log(`✗ Unable to get issues: ${error.message}`, 'error');
+        }
+    } catch (error) {
+        log(`✗ Error: ${error.message}`, 'error');
+    }
+}
+
+async function testStats() {
+    log('[TEST] Getting statistics...', 'info');
+    
+    if (!adminToken) {
+        log('⚠ Need admin token first. Click "Test Admin Login"', 'warning');
+        await testLogin();
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/status-stats`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            log('✓ Status statistics:', 'success');
+            data.forEach(stat => {
+                log(`  - ${stat.status}: ${stat.count}`, 'info');
+            });
+        } else {
+            const error = await response.json();
+            log(`✗ Unable to get stats: ${error.message}`, 'error');
+        }
+    } catch (error) {
+        log(`✗ Error: ${error.message}`, 'error');
+    }
+}
+
+// Check backend on load
+window.addEventListener('load', () => {
+    checkBackendStatus();
+});
+</script>
+
+</body>
+</html>

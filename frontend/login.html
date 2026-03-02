@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Register - CivicTrack AI</title>
+    <title>CivicTrack AI - Login</title>
 
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
     <style>
@@ -20,37 +22,28 @@
 <div class="bg-white/20 backdrop-blur-lg p-10 rounded-2xl shadow-2xl w-96">
 
     <h2 class="text-3xl font-semibold text-white text-center mb-6">
-        Create Account
+        CivicTrack AI
     </h2>
-
-    <input id="name" type="text" placeholder="Full Name"
-        class="w-full p-3 mb-4 rounded-lg outline-none">
 
     <input id="email" type="email" placeholder="Email"
         class="w-full p-3 mb-4 rounded-lg outline-none">
 
     <input id="password" type="password" placeholder="Password"
-        class="w-full p-3 mb-4 rounded-lg outline-none">
+        class="w-full p-3 mb-6 rounded-lg outline-none">
 
-    <label class="text-white font-semibold mb-2 block">Register as:</label>
-    <select id="role" class="w-full p-3 mb-6 rounded-lg outline-none">
-        <option value="citizen">Citizen (Report Issues)</option>
-        <option value="resolver">Resolver (Resolve Issues)</option>
-    </select>
-
-    <button onclick="register()"
+    <button onclick="login()"
         class="w-full bg-white text-indigo-600 font-semibold py-3 rounded-lg hover:bg-gray-200 transition">
-        Register
+        Login
     </button>
 
     <p class="text-white text-sm text-center mt-4">
-        Already have an account?
-        <a href="login.html" class="underline">Login</a>
+        Don’t have an account?
+        <a href="register.html" class="underline">Register</a>
     </p>
 
 </div>
 
-<script src="js/register.js"></script>
+<script src="js/auth.js"></script>
 
 </body>
 </html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resolver Dashboard - CivicTrack AI</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        #resolverMap { z-index: 10; }
+        .leaflet-container { background: #f0f0f0; }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .status-assigned {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #78350f;
+        }
+        .status-in-progress {
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            color: #1e40af;
+        }
+        .status-verified {
+            background: linear-gradient(135deg, #34d399, #10b981);
+            color: #065f46;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+        .stat-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+
+<div class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <div class="w-64 bg-gradient-to-b from-indigo-700 to-indigo-900 text-white p-6 shadow-xl">
+        <div class="flex items-center gap-3 mb-10">
+            <i class="fas fa-hammer text-2xl"></i>
+            <h2 class="text-2xl font-bold">CivicTrack</h2>
+        </div>
+        <h3 class="text-lg font-semibold mb-8 text-indigo-200"><i class="fas fa-user-tie mr-2"></i>Resolver Portal</h3>
+
+        <ul class="space-y-3 mb-10">
+            <li class="hover:bg-indigo-600 p-3 rounded-lg cursor-pointer transition transform hover:scale-105 font-semibold"><i class="fas fa-tasks mr-2"></i>My Assignments</li>
+        </ul>
+
+        <button onclick="logout()" 
+            class="mt-10 w-full bg-white text-indigo-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-100 transition transform hover:scale-105">
+            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-8">
+
+        <h1 class="text-4xl font-bold text-gray-800 mb-8"><i class="fas fa-clipboard-list mr-3 text-indigo-600"></i>My Work Assignments</h1>
+
+        <!-- Stats Cards -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <div class="stat-card border-l-indigo-600">
+                <div class="stat-icon text-indigo-600"><i class="fas fa-briefcase"></i></div>
+                <h3 class="text-gray-600 font-semibold mb-2">Assigned Issues</h3>
+                <p id="assignedCount" class="text-4xl font-bold text-indigo-600">0</p>
+            </div>
+
+            <div class="stat-card border-l-green-600">
+                <div class="stat-icon text-green-600"><i class="fas fa-check-double"></i></div>
+                <h3 class="text-gray-600 font-semibold mb-2">Completed Issues</h3>
+                <p id="completedCount" class="text-4xl font-bold text-green-600">0</p>
+            </div>
+        </div>
+
+        <!-- Assignments Table -->
+        <div class="bg-white p-6 rounded-xl shadow border-t-4 border-indigo-600">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-lg text-gray-800"><i class="fas fa-list-check mr-2 text-indigo-600"></i>Assigned Work</h3>
+                <div class="flex gap-3 items-center">
+                    <select id="resolverStatusFilter" class="p-3 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition cursor-pointer" onchange="filterResolverAssignments()">
+                        <option value="">All Status</option>
+                        <option value="In Progress">🔵 In Progress</option>
+                        <option value="Awaiting Verification">⏳ Awaiting Verification</option>
+                        <option value="Resolved">✅ Resolved</option>
+                    </select>
+                    <button onclick="document.getElementById('resolverStatusFilter').value=''; loadAssignments();" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition transform hover:scale-105 font-semibold">
+                        <i class="fas fa-redo mr-2"></i>Reset
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full">
+                    <thead class="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
+                        <tr>
+                            <th class="p-4 text-left font-semibold">Title</th>
+                            <th class="p-4 text-left font-semibold">Category</th>
+                            <th class="p-4 text-left font-semibold">Severity</th>
+                            <th class="p-4 text-left font-semibold">Status</th>
+                            <th class="p-4 text-left font-semibold">Location</th>
+                            <th class="p-4 text-left font-semibold">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assignmentTable" class="divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Navigation Modal -->
+<div id="navModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white p-8 rounded-xl shadow-2xl max-w-lg w-full transform transition">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-map mr-2 text-indigo-600"></i>Navigate to Location</h2>
+            <button onclick="closeNavModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <div id="navDetails" class="mb-6 p-5 bg-indigo-50 rounded-lg border-l-4 border-indigo-600">
+            <p class="mb-3"><strong class="text-gray-800">Issue:</strong> <span id="navIssueTitle" class="text-indigo-600 font-semibold"></span></p>
+            <p><strong class="text-gray-800">📍 Coordinates:</strong> <span id="navCoordinates" class="font-mono text-sm"></span></p>
+            <div id="miniMap" style="height: 280px; width: 100%; margin-top: 1.5rem;" class="rounded-lg border-2 border-indigo-300 shadow-md"></div>
+        </div>
+
+        <div class="flex gap-4">
+            <button onclick="openGoogleMaps()" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-bold hover:from-blue-700 hover:to-blue-800 transition transform hover:scale-105">
+                <i class="fas fa-map-location mr-2"></i>Open Maps
+            </button>
+            <button onclick="closeNavModal()" class="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-300 transition">
+                <i class="fas fa-times mr-2"></i>Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Completion Modal -->
+<div id="completeModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-check-circle text-green-600 mr-2"></i>Complete Work</h2>
+            <button onclick="closeCompleteModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <div class="mb-6 p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-600">
+            <p class="mb-2"><strong class="text-gray-800">Issue ID:</strong> <span id="completeIssueId" class="font-mono text-indigo-600"></span></p>
+            <p><strong class="text-gray-800">Title:</strong> <span id="completeIssueTitle" class="font-semibold"></span></p>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-800 font-bold mb-3"><i class="fas fa-camera text-indigo-600 mr-2"></i>Work Completion Photo *</label>
+            <div class="border-3 border-dashed border-indigo-300 rounded-lg p-6 text-center mb-4 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer" onclick="document.getElementById('completionImage').click()">
+                <input id="completionImage" type="file" accept="image/*" class="hidden" onchange="previewImage()">
+                <i class="fas fa-cloud-upload-alt text-indigo-600 text-4xl mb-2 block"></i>
+                <button type="button" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 font-semibold transition">
+                    📸 Choose Image
+                </button>
+                <p id="imagePreviewText" class="text-sm text-gray-600 mt-2 font-semibold">No image selected</p>
+                <img id="imagePreview" src="" alt="Preview" class="hidden mt-4 max-h-40 rounded-lg shadow-md mx-auto">
+            </div>
+            <p class="text-xs text-gray-500"><i class="fas fa-info-circle mr-1"></i>Supports: JPG, PNG, GIF, WebP (Max 5MB)</p>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-gray-800 font-bold mb-2"><i class="fas fa-comment text-indigo-600 mr-2"></i>Completion Comments (Optional):</label>
+            <textarea id="completionComments" class="w-full border-2 border-gray-200 rounded-lg p-3 h-24 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition" 
+                placeholder="Describe what was done..."></textarea>
+        </div>
+
+        <div class="flex gap-4">
+            <button onclick="confirmCompletion()" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition transform hover:scale-105">
+                <i class="fas fa-paper-plane mr-2"></i>Submit
+            </button>
+            <button onclick="closeCompleteModal()" class="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-300 transition">
+                <i class="fas fa-times mr-2"></i>Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="js/resolver.js"></script>
+
+</body>
+</html>

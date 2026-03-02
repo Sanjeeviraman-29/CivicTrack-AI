@@ -3,33 +3,49 @@ async function login() {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
 
-    const response = await fetch("http://127.0.0.1:5000/login", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            email,
-            password
-        })
-    });
+    if (!email || !password) {
+        alert("Please fill in all fields");
+        return;
+    }
 
-    const data = await response.json();
+    try {
+        console.log("Attempting login for email:", email);
+        const response = await fetch("http://127.0.0.1:5000/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email,
+                password
+            })
+        });
 
-    if (response.ok) {
+        console.log("Response status:", response.status);
+        const data = await response.json();
 
-        localStorage.setItem("token", data.token);
+        if (response.ok) {
 
-        // Decode token to check role
-        const payload = JSON.parse(atob(data.token.split('.')[1]));
+            localStorage.setItem("token", data.token);
 
-        if (payload.role === "admin") {
-            window.location.href = "dashboard.html";
+            // Decode token to check role
+            const payload = JSON.parse(atob(data.token.split('.')[1]));
+
+            // Redirect based on role
+            if (payload.role === "admin") {
+                window.location.href = "dashboard.html";
+            } else if (payload.role === "resolver") {
+                window.location.href = "resolver.html";
+            } else {
+                window.location.href = "citizen.html";
+            }
+
         } else {
-            window.location.href = "citizen.html";
+            alert("Login failed: " + (data.message || "Invalid credentials"));
+            console.error("Login error:", data);
         }
-
-    } else {
-        alert("Invalid credentials");
+    } catch (error) {
+        console.error("Fetch error:", error);
+        alert("Error during login: " + error.message + ". Make sure the backend server is running on http://127.0.0.1:5000");
     }
 }
